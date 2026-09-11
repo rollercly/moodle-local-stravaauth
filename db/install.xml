@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/stravaauth/db" VERSION="20260910" COMMENT="XMLDB for local_stravaauth">
+  <TABLES>
+    <TABLE NAME="local_stravaauth_token" COMMENT="Tokens OAuth2 de Strava por usuario">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="FK a mdl_user"/>
+        <FIELD NAME="athleteid" TYPE="int" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="ID de atleta en Strava"/>
+        <FIELD NAME="accesstoken" TYPE="text" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="refreshtoken" TYPE="text" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="expiresat" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Unix timestamp de expiracion del access_token"/>
+        <FIELD NAME="scope" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="userid_unique" UNIQUE="true" FIELDS="userid"/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>
