@@ -1,5 +1,26 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Strava API client and OAuth2 token handling.
+ *
+ * @package   local_stravaauth
+ * @copyright 2026 Jose Lorenzo
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 
 namespace local_stravaauth;
 
@@ -9,27 +30,27 @@ global $CFG;
 require_once($CFG->libdir . '/filelib.php');
 
 /**
- * Cliente OAuth2 + wrapper minimo de la API v3 de Strava.
+ * OAuth2 client and minimal wrapper of the Strava API v3.
  *
- * Nota sobre la URL base: developers.strava.com anuncio en su changelog que
- * https://www.strava.com/api/v3 pasara a https://api-v3.strava.com a partir
- * del 4 de enero de 2027. Se centraliza aqui para cambiarla en un solo sitio.
+ * Note on the base URL: developers.strava.com announced in its changelog that
+ * https://www.strava.com/api/v3 will become https://api-v3.strava.com from
+ * 4 January 2027. It is centralised here so it can be changed in one place.
  */
 class api_client {
 
-    /** @var string URL base de la API v3 (revisar antes de enero de 2027). */
+    /** @var string Base URL of the API v3 (review before January 2027). */
     const API_BASE = 'https://www.strava.com/api/v3';
 
-    /** @var string Endpoint de autorizacion OAuth2. */
+    /** @var string OAuth2 authorisation endpoint. */
     const AUTHORIZE_URL = 'https://www.strava.com/oauth/authorize';
 
-    /** @var string Endpoint de intercambio/refresco de tokens. */
+    /** @var string Token exchange/refresh endpoint. */
     const TOKEN_URL = 'https://www.strava.com/oauth/token';
 
     /**
-     * Construye la URL a la que redirigir al usuario para autorizar la app.
+     * Builds the URL the user is redirected to in order to authorise the app.
      *
-     * @param string $state normalmente sesskey() para validar el retorno.
+     * @param string $state usually sesskey(), used to validate the return.
      * @return string
      */
     public static function get_authorize_url(string $state): string {
@@ -48,12 +69,12 @@ class api_client {
     }
 
     /**
-     * Intercambia el codigo de autorizacion por un access_token/refresh_token
-     * y los guarda (o actualiza) para el usuario indicado.
+     * Exchanges the authorisation code for an access_token/refresh_token
+     * and stores (or updates) them for the given user.
      *
      * @param int $userid
-     * @param string $code codigo devuelto por Strava en el callback.
-     * @return \stdClass registro guardado en local_stravaauth_token.
+     * @param string $code code returned by Strava in the callback.
+     * @return \stdClass record stored in local_stravaauth_token.
      */
     public static function exchange_code(int $userid, string $code): \stdClass {
         $curl = new \curl();
@@ -74,11 +95,11 @@ class api_client {
     }
 
     /**
-     * Devuelve un access_token valido para el usuario, refrescandolo si ha
-     * caducado. Lanza excepcion si el usuario no ha vinculado su cuenta.
+     * Returns a valid access_token for the user, refreshing it if it has
+     * expired. Throws an exception if the user has not linked their account.
      *
      * @param int $userid
-     * @return string access_token valido.
+     * @return string valid access_token.
      */
     public static function get_valid_access_token(int $userid): string {
         global $DB;
@@ -88,7 +109,7 @@ class api_client {
             throw new \moodle_exception('errornotconnected', 'local_stravaauth');
         }
 
-        // Margen de 5 minutos para evitar condiciones de carrera con la caducidad.
+        // 5-minute margin to avoid race conditions with token expiry.
         if ($token->expiresat > (time() + 300)) {
             return $token->accesstoken;
         }
@@ -112,12 +133,12 @@ class api_client {
     }
 
     /**
-     * Llamada GET generica autenticada contra la API de Strava.
+     * Generic authenticated GET call to the Strava API.
      *
-     * @param int $userid usuario cuyo token se usa para autenticar.
-     * @param string $endpoint p.ej. 'athlete/activities'.
-     * @param array $params query string adicional.
-     * @return array respuesta decodificada de JSON.
+     * @param int $userid user whose token is used to authenticate.
+     * @param string $endpoint e.g. 'athlete/activities'.
+     * @param array $params additional query string.
+     * @return array decoded JSON response.
      */
     public static function get(int $userid, string $endpoint, array $params = []): array {
         $accesstoken = self::get_valid_access_token($userid);
@@ -141,7 +162,7 @@ class api_client {
     }
 
     /**
-     * Indica si el usuario ya ha vinculado su cuenta de Strava.
+     * Whether the user has already linked their Strava account.
      */
     public static function is_connected(int $userid): bool {
         global $DB;
@@ -149,10 +170,10 @@ class api_client {
     }
 
     /**
-     * Inserta o actualiza el registro de token para el usuario.
+     * Inserts or updates the user's token record.
      *
      * @param int $userid
-     * @param array $data respuesta cruda del endpoint de token de Strava.
+     * @param array $data raw response of the Strava token endpoint.
      * @return \stdClass
      */
     private static function store_token(int $userid, array $data): \stdClass {

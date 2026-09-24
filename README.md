@@ -1,52 +1,55 @@
-# local_stravaauth — Autenticación OAuth2 con Strava para Moodle
+# local_stravaauth — Strava OAuth2 authentication for Moodle
 
 ![Moodle 4.1+](https://img.shields.io/badge/Moodle-4.1%2B-orange)
-![Version](https://img.shields.io/badge/versión-0.1.0--alpha-blue)
+![Version](https://img.shields.io/badge/version-0.1.0--alpha-blue)
 ![PHP 8.1+](https://img.shields.io/badge/PHP-8.1%2B-purple)
-![Licencia](https://img.shields.io/badge/licencia-GPLv3-green)
+![License](https://img.shields.io/badge/license-GPLv3-green)
 
-Plugin local de Moodle que implementa el flujo **OAuth 2.0** de [Strava](https://www.strava.com) y expone un cliente de la **API v3** para que otros plugins (como `mod_strava`) puedan consultar las actividades deportivas de los usuarios sin gestionar tokens propios.
+Moodle local plugin that implements the [Strava](https://www.strava.com) **OAuth 2.0** flow and exposes a **v3 API** client, so that other plugins (such as `mod_strava`) can query users' sporting activities without managing their own tokens.
 
----
-
-## Índice
-
-- [¿Qué hace este plugin?](#qué-hace-este-plugin)
-- [Requisitos](#requisitos)
-- [Registro de la aplicación en Strava](#registro-de-la-aplicación-en-strava)
-- [Instalación](#instalación)
-- [Configuración en Moodle](#configuración-en-moodle)
-- [Flujo de conexión del usuario](#flujo-de-conexión-del-usuario)
-- [API pública para otros plugins](#api-pública-para-otros-plugins)
-- [Base de datos](#base-de-datos)
-- [Privacidad y RGPD](#privacidad-y-rgpd)
-- [Referencia de la API de Strava](#referencia-de-la-api-de-strava)
+*Documentación en español: [README.es.md](README.es.md).*
 
 ---
 
-## ¿Qué hace este plugin?
+## Table of contents
 
-`local_stravaauth` actúa como capa de autenticación y acceso a la API de Strava para toda la plataforma Moodle:
+- [What does this plugin do?](#what-does-this-plugin-do)
+- [Requirements](#requirements)
+- [Registering the application in Strava](#registering-the-application-in-strava)
+- [Installation](#installation)
+- [Configuration in Moodle](#configuration-in-moodle)
+- [User connection flow](#user-connection-flow)
+- [Public API for other plugins](#public-api-for-other-plugins)
+- [Database](#database)
+- [Privacy and GDPR](#privacy-and-gdpr)
+- [Strava API reference](#strava-api-reference)
+- [License](#license)
 
-- Implementa el flujo **Authorization Code** de OAuth 2.0 con Strava.
-- Almacena y **refresca automáticamente** los tokens de acceso cuando caducan.
-- Expone la clase `\local_stravaauth\api_client` como interfaz única para que cualquier otro plugin consulte la API de Strava en nombre de un usuario.
-- Indica visualmente al usuario si ya tiene su cuenta vinculada.
+---
+
+## What does this plugin do?
+
+`local_stravaauth` acts as the authentication and Strava API access layer for the whole Moodle site:
+
+- Implements the OAuth 2.0 **Authorization Code** flow with Strava.
+- Stores and **automatically refreshes** access tokens when they expire.
+- Exposes the `\local_stravaauth\api_client` class as the single interface for any other plugin to query the Strava API on behalf of a user.
+- Shows the user whether their account is already linked.
 
 ```
 ┌─────────────┐      OAuth 2.0 redirect       ┌───────────────────┐
-│   Usuario   │ ─────────────────────────────► │  strava.com/oauth │
+│    User     │ ─────────────────────────────► │  strava.com/oauth │
 │  (Moodle)   │ ◄───────────────────────────── │  /authorize       │
 └─────────────┘   code + state (sesskey)       └───────────────────┘
        │
-       │  callback.php intercambia el código
+       │  callback.php exchanges the code
        ▼
 ┌────────────────────────┐   POST token   ┌─────────────────────────┐
 │  local_stravaauth      │ ─────────────► │  strava.com/oauth/token │
 │  callback.php          │ ◄───────────── │  access_token +         │
 └────────────────────────┘                │  refresh_token          │
        │                                  └─────────────────────────┘
-       │  guarda en BD
+       │  saved in the database
        ▼
 ┌────────────────────────────┐
 │  mdl_local_stravaauth_token│
@@ -56,178 +59,175 @@ Plugin local de Moodle que implementa el flujo **OAuth 2.0** de [Strava](https:/
 
 ---
 
-## Requisitos
+## Requirements
 
-| Componente | Versión mínima |
+| Component | Minimum version |
 |---|---|
 | Moodle | 4.1 (build 2022112800) |
 | PHP | 8.1 |
-| Extensión `curl` de PHP | requerida |
+| PHP `curl` extension | required |
 
 ---
 
-## Registro de la aplicación en Strava
+## Registering the application in Strava
 
-Antes de configurar el plugin en Moodle debes crear una aplicación en el panel de desarrolladores de Strava:
+Before configuring the plugin in Moodle you must create an application in the Strava developer dashboard:
 
-1. Accede a **[https://developers.strava.com/](https://developers.strava.com/)** e inicia sesión con tu cuenta de Strava.
-2. Ve a **[My API Application](https://www.strava.com/settings/api)** (menú superior derecho → *Settings* → *My API Application*).
-3. Rellena los campos:
+1. Go to **[https://developers.strava.com/](https://developers.strava.com/)** and log in with your Strava account.
+2. Open **[My API Application](https://www.strava.com/settings/api)** (top-right menu → *Settings* → *My API Application*).
+3. Fill in the fields:
 
-   | Campo | Valor de ejemplo |
+   | Field | Example value |
    |---|---|
-   | Application Name | Mi Moodle |
+   | Application Name | My Moodle |
    | Category | Education |
-   | Club | *(vacío o el tuyo)* |
+   | Club | *(empty or your own)* |
    | Website | `https://moodle.example.com` |
    | Authorization Callback Domain | `moodle.example.com` |
 
-4. Guarda y anota el **Client ID** y el **Client Secret** que aparecen en la página de tu aplicación.
+4. Save and note the **Client ID** and **Client Secret** shown on your application page.
 
-> **Importante — URL de callback exacta**
+> **Important — exact callback URL**
 >
-> El campo *Authorization Callback Domain* en Strava sólo acepta el dominio (sin ruta). Sin embargo, al configurar el plugin en Moodle, la pantalla de ajustes te mostrará la URL completa de callback que debes registrar. Cópiala tal cual.
+> The *Authorization Callback Domain* field in Strava only accepts the domain (no path). However, when configuring the plugin in Moodle, the settings page shows the full callback URL that you must register. Copy it as is.
 
 ---
 
-## Instalación
+## Installation
 
 ```bash
-# Desde la raíz de Moodle
+# From the Moodle root
 cp -r local/stravaauth /var/www/html/moodle/local/stravaauth
 
-# O mediante Git
+# Or via Git
 git clone <repo> local/stravaauth
 ```
 
-Después, accede a **Administración del sitio → Notificaciones** para que Moodle ejecute el instalador de base de datos y cree la tabla `mdl_local_stravaauth_token`.
+Then go to **Site administration → Notifications** so Moodle runs the database installer and creates the `mdl_local_stravaauth_token` table.
 
 ---
 
-## Configuración en Moodle
+## Configuration in Moodle
 
-Ruta: **Administración del sitio → Plugins → Plugins locales → Autenticación con Strava**
+Path: **Site administration → Plugins → Local plugins → Strava authentication**
 
-| Ajuste | Descripción |
+| Setting | Description |
 |---|---|
-| **Client ID** | El número de Client ID de tu aplicación en strava.com/settings/api |
-| **Client Secret** | La clave secreta de tu aplicación |
-| **URL de callback** | Informativa. Cópiala y pégala en el panel de Strava |
-
-![Configuración del plugin](docs/img/settings.png)
-*(captura de la página de configuración)*
+| **Client ID** | The Client ID of your application at strava.com/settings/api |
+| **Client Secret** | The secret key of your application |
+| **Callback URL** | Informational. Copy it and paste it into the Strava dashboard |
 
 ---
 
-## Flujo de conexión del usuario
+## User connection flow
 
 ```mermaid
 sequenceDiagram
-    participant U as Usuario (alumno/a)
+    participant U as User (student)
     participant M as Moodle (connect.php)
     participant S as Strava OAuth
     participant C as callback.php
-    participant DB as BD Moodle
+    participant DB as Moodle DB
 
-    U->>M: Hace clic en "Conectar con Strava"
-    M->>M: Guarda returnurl en sesión
-    M->>S: Redirige a /oauth/authorize?scope=read,activity:read_all
-    S->>U: Muestra pantalla de permisos de Strava
-    U->>S: Acepta
-    S->>C: Redirige con ?code=...&state=sesskey
-    C->>C: Valida sesskey (CSRF)
-    C->>S: POST /oauth/token (intercambio de código)
+    U->>M: Clicks "Connect with Strava"
+    M->>M: Stores returnurl in session
+    M->>S: Redirects to /oauth/authorize?scope=read,activity:read_all
+    S->>U: Shows the Strava permissions screen
+    U->>S: Accepts
+    S->>C: Redirects with ?code=...&state=sesskey
+    C->>C: Validates sesskey (CSRF)
+    C->>S: POST /oauth/token (code exchange)
     S->>C: access_token + refresh_token + expires_at
-    C->>DB: Inserta/actualiza local_stravaauth_token
-    C->>U: Redirige a returnurl con mensaje de éxito
+    C->>DB: Inserts/updates local_stravaauth_token
+    C->>U: Redirects to returnurl with a success message
 ```
 
-El usuario sólo necesita autorizar **una vez**. A partir de entonces el plugin refresca el token automáticamente cuando está a punto de caducar (margen de 5 minutos).
+The user only needs to authorise **once**. From then on the plugin refreshes the token automatically when it is about to expire (5-minute margin).
 
 ---
 
-## API pública para otros plugins
+## Public API for other plugins
 
-La clase `\local_stravaauth\api_client` es la única interfaz que deben usar los plugins dependientes:
+The `\local_stravaauth\api_client` class is the only interface dependent plugins should use:
 
 ```php
 use local_stravaauth\api_client;
 
-// ¿El usuario tiene la cuenta vinculada?
+// Is the user's account linked?
 if (!api_client::is_connected($userid)) {
-    // mostrar botón "Conectar con Strava"
+    // show the "Connect with Strava" button
 }
 
-// Llamada autenticada a la API (el token se refresca si es necesario)
+// Authenticated API call (the token is refreshed if needed)
 $activities = api_client::get($userid, 'athlete/activities', [
     'after'    => strtotime('2026-01-01'),
     'before'   => strtotime('2026-12-31'),
     'per_page' => 50,
 ]);
 
-// Iniciar el flujo de autorización (redirige al usuario)
+// Start the authorisation flow (redirects the user)
 $url = api_client::get_authorize_url(sesskey());
 redirect($url);
 ```
 
-### Métodos disponibles
+### Available methods
 
-| Método | Descripción |
+| Method | Description |
 |---|---|
-| `is_connected(int $userid): bool` | Comprueba si el usuario tiene token almacenado |
-| `get_authorize_url(string $state): string` | Construye la URL de autorización de Strava |
-| `exchange_code(int $userid, string $code): stdClass` | Intercambia el código OAuth por tokens y los persiste |
-| `get_valid_access_token(int $userid): string` | Devuelve un access token válido (refresca si está caducado) |
-| `get(int $userid, string $endpoint, array $params): array` | Petición GET autenticada a la API v3 de Strava |
+| `is_connected(int $userid): bool` | Checks whether the user has a stored token |
+| `get_authorize_url(string $state): string` | Builds the Strava authorisation URL |
+| `exchange_code(int $userid, string $code): stdClass` | Exchanges the OAuth code for tokens and stores them |
+| `get_valid_access_token(int $userid): string` | Returns a valid access token (refreshes it if expired) |
+| `get(int $userid, string $endpoint, array $params): array` | Authenticated GET request to the Strava v3 API |
 
-### Permisos (scopes) solicitados
+### Requested permissions (scopes)
 
-El plugin solicita los scopes `read` y `activity:read_all`, suficientes para leer el perfil del atleta y todas sus actividades (incluidas las privadas).
+The plugin requests the `read` and `activity:read_all` scopes, enough to read the athlete's profile and all of their activities (including private ones).
 
-> **Cambio de URL base previsto**
+> **Planned base URL change**
 >
-> Strava ha anunciado que `https://www.strava.com/api/v3` pasará a `https://api-v3.strava.com` en enero de 2027. La URL base está centralizada en la constante `api_client::API_BASE` para facilitar el cambio.
+> Strava has announced that `https://www.strava.com/api/v3` will become `https://api-v3.strava.com` in January 2027. The base URL is centralised in the `api_client::API_BASE` constant to make the change easy.
 
 ---
 
-## Base de datos
+## Database
 
 ### `mdl_local_stravaauth_token`
 
-| Columna | Tipo | Descripción |
+| Column | Type | Description |
 |---|---|---|
-| `id` | INT | Clave primaria |
-| `userid` | INT | FK → `mdl_user.id` (índice único) |
-| `athleteid` | INT | ID del atleta en Strava |
-| `accesstoken` | TEXT | Token de acceso OAuth2 |
-| `refreshtoken` | TEXT | Token de refresco OAuth2 |
-| `expiresat` | INT | Unix timestamp de expiración del access token |
-| `scope` | VARCHAR(255) | Permisos concedidos por el usuario |
-| `timecreated` | INT | Fecha de vinculación inicial |
-| `timemodified` | INT | Fecha de última actualización del token |
+| `id` | INT | Primary key |
+| `userid` | INT | FK → `mdl_user.id` (unique index) |
+| `athleteid` | INT | Athlete ID in Strava |
+| `accesstoken` | TEXT | OAuth2 access token |
+| `refreshtoken` | TEXT | OAuth2 refresh token |
+| `expiresat` | INT | Unix timestamp when the access token expires |
+| `scope` | VARCHAR(255) | Permissions granted by the user |
+| `timecreated` | INT | Date of the initial link |
+| `timemodified` | INT | Date of the last token update |
 
 ---
 
-## Privacidad y RGPD
+## Privacy and GDPR
 
-El plugin implementa la interfaz `\core_privacy\local\metadata\provider` y declara todos los datos personales que almacena:
+The plugin implements the `\core_privacy\local\metadata\provider` interface and declares all the personal data it stores:
 
-- **`local_stravaauth_token`**: tokens OAuth2 y el ID de atleta de Strava del usuario.
-- **Datos externos**: al realizar llamadas a la API de Strava se envían datos de identificación del usuario (token de acceso) a los servidores de Strava.
+- **`local_stravaauth_token`**: OAuth2 tokens and the user's Strava athlete ID.
+- **External data**: when calling the Strava API, user identification data (the access token) is sent to Strava's servers.
 
-Los datos se exportan y eliminan correctamente a través de las herramientas de privacidad de Moodle.
-
----
-
-## Referencia de la API de Strava
-
-- **Portal de desarrolladores**: [https://developers.strava.com/](https://developers.strava.com/)
-- **Referencia completa de la API v3**: [https://developers.strava.com/docs/reference/](https://developers.strava.com/docs/reference/)
-- **Guía de autenticación OAuth2**: [https://developers.strava.com/docs/authentication/](https://developers.strava.com/docs/authentication/)
-- **Gestión de tu aplicación**: [https://www.strava.com/settings/api](https://www.strava.com/settings/api)
+Data is exported and deleted correctly through Moodle's privacy tools.
 
 ---
 
-## Licencia
+## Strava API reference
 
-GNU GPL v3 — consulta el fichero `LICENSE` o visita [gnu.org/licenses/gpl-3.0](https://www.gnu.org/licenses/gpl-3.0.html).
+- **Developer portal**: [https://developers.strava.com/](https://developers.strava.com/)
+- **Full API v3 reference**: [https://developers.strava.com/docs/reference/](https://developers.strava.com/docs/reference/)
+- **OAuth2 authentication guide**: [https://developers.strava.com/docs/authentication/](https://developers.strava.com/docs/authentication/)
+- **Manage your application**: [https://www.strava.com/settings/api](https://www.strava.com/settings/api)
+
+---
+
+## License
+
+GNU GPL v3 or later — see the `LICENSE` file or visit [gnu.org/licenses/gpl-3.0](https://www.gnu.org/licenses/gpl-3.0.html).
